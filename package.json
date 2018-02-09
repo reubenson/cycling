@@ -1,0 +1,15 @@
+{
+  "name": "cycling",
+  "version": "1.0.0",
+  "description": "patch generator",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "media": "node media/media.js"
+  },
+  "author": "reuben son",
+  "license": "ISC",
+  "devDependencies": {
+    "directory-tree": "^2.0.0"
+  }
+}

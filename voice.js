@@ -3,7 +3,7 @@ const sequence = require('sequence').constructor,
 	Chords = require('chords').chords;
 
 var	voices = [],
-	shiftRegister = [1.0, 1.0, 1.0, 1.0];
+	shiftRegister;
 
 function swap(Sequence, iteration , NumberOfBells) {
 // Swap members of Sequence according to the 'plain bob' method, which is the simplest instance of method ringing.
@@ -29,8 +29,21 @@ function swap(Sequence, iteration , NumberOfBells) {
 	return Sequence;
 }
 
-function Voice(opts) {
+function Voice(opts, params) {
 	this.id = voices.length;
+	// import voiceParams to this.params
+	_.forEach(params.voiceParams[this.id], function(value, key){
+		this[key] = value;
+	}.bind(this));
+
+	this.params = params;
+	this.sequenceType = this.sequenceType || params.sequenceType;
+	this.length = opts.length;
+	this.hits = _.clamp(opts.hits, 0, this.length);
+
+	// hacky, but this needs to happen first
+	this.processSubdivision();
+
 	this.noteDuration = 15;
 	this.pitchOutlet = opts.pitchOutlet;
 	this.triggerOutlet = opts.triggerOutlet;
@@ -43,63 +56,81 @@ function Voice(opts) {
 	// used in different ways by different rules
 	this.intervalIndex = 0;
 
-	this.length = opts.length;
-	this.hits = _.clamp(opts.hits, 0, this.length);
 	this.scale = opts.scale;
-	this.repetitions = 1;
-	this.rule = opts.rule || 'S';
+	this.repetitions = preset.repetitions;
+	// this.rule = opts.rule || 'S';
 	this.timeFactor = 1;
-	// this.ringChanges = opts.ringChanges || false;
+	// this.twill = params.voiceParams[this.id].twill;
+	// this.strata = opts.strata;
+	// this.register = params.voiceParams[this.id].register;
 
-	// this.floor and this.roof define the bounds of each voice's pitch
-  if (strata) {
-    // each voice sits in its own octave register
-    this.floor = Math.pow(2, this.id);
-    this.roof  = Math.pow(2, this.id + 1);
-  }
-  else {
-    // each voice spans entire four octaves
-    this.floor = Math.pow(2, 0);
-    this.roof  = Math.pow(2, 4);
-  }
+	// needed for managing sequences of different lengths
+	this.main = opts.main;
+	this.bangDivider = this.main.lcm / this.length;
+	console.log('bangDivider', this.bangDivider);
 
+	// if (this.bangDivider == 1) {
+	// 	this.bangDivider = this.main.lcm;
+	// }
+	this.rule = this.rule || params.rule;
+
+	// initialize shift register
+	shiftRegister = shiftRegister || _.times(this.main.numberOfVoices, function(){return 1.0});
+	console.log('shiftReg', shiftRegister);
+
+	this.setRegister(params.voiceParams[this.id].register);
 	this.init();
+
 	voices.push(this);
 }
 
 Voice.prototype = {
+	// notes on timing:
+	// each note in a sequence can be given equal duration,
+	// or sequence can be of equal duration (polyrhythm)
+	// the latter will be implemented first
 	bang: function() {
-		if (this.shouldTrigger()) {
-			// var midiVal = Math.round(Math.random() * 8) * 12,
-
-			this.advance();
-			this.sendNote();
-			this.sendTrigger();
+		if (this.main.seqcounter % this.bangDivider == 0 ) {
 
 			// if (this.id === 3) {
-			// 	post('sequence', this.sequence.pitchArray); post();
+			// 	console.log('testing trigger', this.main.seqcounter);
+			// 	console.log('bang divider', this.bangDivider);
 			// }
+			if (this.shouldTrigger()) {
+				// var midiVal = Math.round(Math.random() * 8) * 12,
 
-			// if (voice.id == 0) {
-			// 	midiVal = ((seqcounter % voice.length) ) * 12;
-			// 	// outlet(2, hertzVal);
-			// 	outlet(1, seqcounter); // sound out our location in the sequence
-			// 	outlet(0, midiVal); // send out the current note
-			// }
+				if (this.shouldAdvance()) {
+					this.advance();
+				}
+				this.sendNote();
+				this.sendTrigger();
+
+				// if (this.id === 3) {
+				// 	post('sequence', this.sequence.pitchArray); post();
+				// }
+
+				// if (voice.id == 0) {
+				// 	midiVal = ((seqcounter % voice.length) ) * 12;
+				// 	// outlet(2, hertzVal);
+				// 	outlet(1, seqcounter); // sound out our location in the sequence
+				// 	outlet(0, midiVal); // send out the current note
+				// }
+			}
+
+			this.tick();
+
 		}
-
-		this.tick();
 	},
 
 	// Return the previous voice in TrigOrder
 	previousVoice: function() {
     var i = 0;
 
-    while (this.id != trigOrder[i]) {
+    while (this.id != this.trigOrder[i]) {
       i++;
     }
 
-    return voices[ trigOrder[(i+3)%4] ];
+    return voices[ this.trigOrder[(i+this.main.numberOfVoices-1) % this.main.numberOfVoices] ];
   },
 
 	getInterval: function() {
@@ -111,6 +142,42 @@ Voice.prototype = {
 		// this.sequence.getPitchRatio[i];
 		// this.sequence.getPitchFromScale(i);
 		return this.scale.getPitch(i);
+	},
+
+	// TODO: clean up
+	setRegister: function(register) {
+		var registerLow, registerHigh;
+
+		if (typeof register === 'object') {
+			registerLow = register[0];
+			registerHigh = register[1];
+			console.log('register', register);
+		} else if (typeof register === 'number') {
+			registerLow = register;
+			registerHigh = register + 1;
+			console.log('register', register);
+		} else {
+			registerLow = -1;
+			reigsterHigh = 4;
+		}
+
+		// this.floor and this.roof define the bounds of each voice's pitch
+	  if (typeof registerLow === 'number') {
+	    // each voice sits in its own octave register
+	    this.floor = Math.pow(2, registerLow);
+	    this.roof  = Math.pow(2, registerHigh);
+			// this.register = register;
+	  }
+	  else {
+			console.log('else??');
+	    // each voice spans entire four octaves
+	    this.floor = Math.pow(2, -1);
+	    this.roof  = Math.pow(2, 4);
+	  }
+	},
+
+	shouldAdvance: function() {
+		return !this.isFrozen;
 	},
 
 	advance: function() {
@@ -128,29 +195,29 @@ Voice.prototype = {
 		var newInterval = this.getPitchRatio[this.currentPosition];
 		var updateSequence = false;
 
-		var PopulateSequenceOnce = ringChanges;
-		var SingleVoiceModes = singleVoice || shiftRegisterMode || ET;
+		var PopulateSequenceOnce = this.params.ringChanges;
+		var SingleVoiceModes = this.params.singleVoice || this.params.shiftRegisterMode || this.params.ET;
 		if ( (((!SingleVoiceModes) || this.id == 0) && !PopulateSequenceOnce) || (PopulateSequenceOnce && _counter < this.length)){
 
 			// determine new note according to this.rule
 			newInterval = Rules[this.rule].call(this);
 
 			// quantize to nearest note in Scale
-			if (quantize) {
+			if (this.params.quantize) {
 				newInterval = this.scale.quantizeNote(newInterval);
 			}
 
 			updateSequence = true;
 		}
 
-		else if (ringChanges && _counter % this.length == 0) {
+		else if (this.params.ringChanges && _counter % this.length == 0) {
 			var iteration = Math.floor( this.index / this.length );
 
 			this.sequence.pitchArray = swap(this.sequence.pitchArray, iteration, this.length);
 			newInterval = this.sequence.pitchArray[this.index];
 		}
 
-		else if (ET) {
+		else if (this.params.ET) {
 			switch (this.id) {
 				case 1: newInterval = Voices[0].getPitchRatio()*2.; break;
 				case 2: newInterval = Voices[0].getPitchRatio(this.length-1-this.currentPosition); break;
@@ -158,7 +225,7 @@ Voice.prototype = {
 			}
 		}
 
-		else if (singleVoice){
+		else if (this.params.singleVoice){
 			// Voices 2-4 pitch fixed with respect to by Voice1
 			newInterval = this.id == 0 ? newInterval : voices[0].currentInterval;
 			newInterval *= this.intervalMultiplier;
@@ -166,7 +233,7 @@ Voice.prototype = {
 			updateSequence = true;
 		}
 
-		else if (shiftRegisterMode) {
+		else if (this.params.shiftRegisterMode) {
 			newInterval = shiftRegister[this.id];
 			updateSequence = true;
 		}
@@ -177,7 +244,7 @@ Voice.prototype = {
 
 		// make sure newInterval is between 1 and 16
 		// re-evaluating ...
-		// this.fixInterval(newInterval);
+		newInterval = this.fixInterval(newInterval);
 
 		// update sequence with new note
 		if (updateSequence) {
@@ -186,12 +253,12 @@ Voice.prototype = {
 		}
 
 		// enforce temporal cohesion in SingleVoice mode
-		if (this.id != 0 && singleVoice) { this.timeFactor = voices[0].timeFactor; }
+		if (this.id != 0 && this.params.singleVoice) { this.timeFactor = voices[0].timeFactor; }
 		// this.timeFactor = 1./pow(newInterval,0.5);
 		// this.timeFactor = random(1,2);
 
 		// update shift register
-		if (this.id == trigOrder[0]) {
+		if (this.id == this.main.trigOrder[0]) {
 			this.updateShiftRegister(newInterval);
 		}
 	},
@@ -209,10 +276,35 @@ Voice.prototype = {
 	// _.clamp Interval to periodic boundaries defined by this.roof and this.floor
 		while (Interval-this.roof>1e-3) {Interval /= this.roof/this.floor;}
 		while (this.floor-Interval>1e-3) {Interval *= this.roof/this.floor;}
+
+		return Interval;
+	},
+
+	evaluateTwill: function() {
+		var barCount = this.main.barCount + this.id,
+			twill = this.twill || this.main.twill,
+			a = twill[0] || 0,
+			b = twill[1] || 0,
+			c = twill[2] || 0,
+			d = twill[3] || 0;
+
+		// return true
+		// console.log('barcount', barCount);
+		// console.log('twill', twill);
+		// console.log('test', barCount % (a+b+c+d) < a || barCount % (a + b + c + d ) < (a + b + c) && barCount % (a + b + c + d ) >= (a + b));
+
+		return barCount % (a+b+c+d) < a || barCount % (a + b + c + d ) < (a + b + c) && barCount % (a + b + c + d ) >= (a + b);
 	},
 
 	shouldTrigger: function() {
-		return this.sequence.shouldTrigger(this.index);
+		// return this.sequence.shouldTrigger(this.index, this.id);
+		if (this.triggerRule === 'LFO') {
+			// console.log('mod1', this.modulator1);
+			return Math.random() > 0.7;
+			// return this.modulator1 >= 0.5;
+		} else {
+			return this.evaluateTwill() && this.sequence.shouldTrigger(this.index, this.id);
+		}
 	},
 
 	tick: function() {
@@ -221,9 +313,17 @@ Voice.prototype = {
 
 	sendNote: function() {
 		var interval = this.sequence.getInterval(this.index);
-			pitch = baseFrequency * interval;
+			pitch = this.params.baseFrequency * interval;
 
-		outlet(this.pitchOutlet, pitch);
+		// interval = 1.0;
+
+		outlet(this.pitchOutlet, interval);
+
+		// modulate sample playback spped
+		// bug: update sfplay[] to be an object, not array?
+		if (this.params.voiceParams[this.id].soundSource === 'media') {
+			// propagateChange('pitchRatio', interval * 0.5, this.id);
+		};
 	},
 
 	sendTrigger: function() {
@@ -231,8 +331,12 @@ Voice.prototype = {
 			outlet(this.triggerOutlet, 0);
 		}
 		var t = new Task(removeTrigger.bind(this));
-		outlet(this.triggerOutlet, 1);
-		t.schedule(this.noteDuration);
+		outlet(this.triggerOutlet, "bang");
+
+		// trigger sample playback
+		if (this.params.voiceParams[this.id].soundSource === 'media') {
+			propagateChange('voiceTrigger', 1, this.id);
+		}
 
 	},
 
@@ -251,11 +355,28 @@ Voice.prototype = {
 		// }
 	},
 
-	init: function() {
-		this.sequence = new sequence(this.length, this.hits);
-		if (singleVoice) {
-			this.setupSingleVoice(chordIndex);
+	voices: function() {
+		return voices;
+	},
+
+	processSubdivision: function() {
+		var subdivision = this.hasOwnProperty('subdivision') ? this.subdivision : 1;
+		if (subdivision > 1) {
+			console.log('subdivision', subdivision);
 		}
+		this.sequence = new sequence(this.sequenceType, this.length, this.hits, subdivision);
+		this.length *= subdivision;
+	},
+
+	init: function() {
+		if (this.params.singleVoice) {
+			this.setupSingleVoice(this.params.chordIndex);
+		}
+	},
+
+	toggleFreeze: function() {
+		this.isFrozen = !this.isFrozen;
+		console.log('isfrozen', this.isFrozen);
 	}
 }
 

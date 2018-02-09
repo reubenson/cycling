@@ -1,223 +1,131 @@
 var Voice = require('voice').constructor,
-	Scale = require('scale').constructor,
+	Scale = require('tuning-scale').constructor,
+	Main = require('main').constructor,
+	Presets = require('presets').presets,
+	Controller = require('controller').controller,
+	controllerName = 'beatstep',
+	controller = Controller[controllerName],
+	media = require('mediamap').media,
+
+	// global obj to store MAX objects in for easy lookup
+	GLOBAL = {},
+	saveToGlobal = function (obj, id) {
+	  var keys = Object.keys(obj);
+
+	  _.forEach(keys, function(key){
+	    GLOBAL[key] = GLOBAL[key] || {};
+	    GLOBAL[key][id] = obj[key];
+	  });
+	},
+
 	console = {
 		log: function(a, b) {
 			post(a, b ,"\n");
 		}
 	};
 
+function registerObject(key, obj) {
+	GLOBAL[key] = obj;
+}
 
+function retrieveObject(key) {
+	return GLOBAL[key];
+}
 
-// inlets and outlets
+GLOB = {};
+function subscribeToChange(key, object, action, id) {
+	var object = {
+		maxObject: object,
+		action: action
+	};
+
+	if (typeof id === 'undefined') {
+		GLOB[key] = GLOB[key] || [];
+		GLOB[key].push(object);
+	} else {
+		GLOB[key] = GLOB[key] || {};
+		GLOB[key][id] = GLOB[key][id] || [];
+		GLOB[key][id].push(object);
+	}
+}
+function propagateChange(key, value, id) {
+	var subscribers;
+
+	try {
+		subscribers = (typeof id === 'undefined') ? GLOB[key] : GLOB[key][id];
+	} catch (e) {
+		console.log('no subscribers found for global key:', key);
+		return;
+	}
+
+	_.forEach(subscribers, function(subscriber) {
+		subscriber.maxObject[subscriber.action](value);
+	});
+}
+
+this.preset = Presets[0];
+var numberOfVoices = this.preset.voiceParams.length;
+
 inlets = 1;
-outlets = 2;
+outlets = 2 * numberOfVoices;
 
-// global variables and arrays
-var numberOfVoices = 4;
-var numsliders = 0;
-var seqcounter = 0;
-var thevalues = new Array(numberOfVoices);
+var qcvg = new Main(this.preset, this.patcher, this.box);
 
-// qcvg variables
-var scale = new Scale({
-	tuning: 'P',
-	scaleChoice: '-1',
-	numberOfDivisions: 12
-});
-var baseFrequency = 200;
-var rule = 'R';
-var trigOrder = [0, 1, 2, 3];
-var ET = false;
-var strata = false;
-var quantize = true;
-var chordIndex = 4;
-
-// PITCH MODES
-var shiftRegisterMode = true;
-var ringChanges = false;
-var singleVoice = false;
-
-// TEMPORAL MODES
-var offsetVoiceMode = true;
-
-// Maxobj variables for scripting
-var controlin = new Array(numberOfVoices);
-var thesliders = new Array(numberOfVoices);
-var thefunnel;
-
-var voices = [];
-var maxObjects = [];
-
-init();
-
-function init() {
-	setupPatch();
-
+function loadbang() {
 	var obj = this.patcher.firstobject;
+
 	while (obj) {
-		console.log('name', obj.name);
-		console.log('class', obj.maxclass);
-		if (obj.name) {
-			this.patcher.remove(obj);
+		var nextObject = obj.nextobject;
+		if (obj.varname) {
+			if (!obj.varname.match(/pan/) && !obj.varname.match(/thejs/) && !obj.varname.match(/bp./)) {
+				this.patcher.remove(obj);
+			}
 		}
-		obj = obj.nextobject;
-	}
-}
-
-
-// resolve issues with connecting to dynamic outlets by wrapping in task
-function connectByTask(obj1, o, obj2, i) {
-
-	function connect(obj1, o, obj2, i) {
-		this.patcher.connect(obj1, o, obj2, i);
+		obj = nextObject;
 	}
 
-	var tsk = new Task( connect, this, obj1, o, obj2, i );
-	// tsk.schedule(10);
-	tsk.execute();
+	qcvg.init();
+	this.patcher.apply(actualBang);
 }
 
-// sliders(numberOfVoices);
-
-function removeObjects(objectNames, suffix) {
-	_.forEach(objectNames, function(objectName) {
-		var name = objectName + suffix;
-		var object = this.patcher.getnamed(name)
-		this.patcher.remove(object);
-	}.bind(this));
-}
-
-function setupPatch() {
-	var baseFrequencyObj = this.patcher.newdefault(10, 10, 'number', baseFrequency);
-		baseFrequencyObj.varname = 'BaseFrequency';
-
-	if (!this.patcher.getnamed('cycle0')) {
-		_.times(numberOfVoices, function(){
-			generateVoice(8,8);
-		});
-	} else {
-		var objects = ['adsr', 'cycle', 'multiply'];
-
-		_.times(numberOfVoices, function(i) {
-			// existing objects seem to be unreliable ...
-			// remove objects
-			removeObjects(objects, i);
-			// and generate them again
-			generateVoice(8,8);
-		}.bind(this));
+function actualBang(obj) {
+	if (obj.maxclass.match(/dial/)) {
+		return false
 	}
-}
-
-// sliders -- generates and binds the sliders in the max patch
-function sliders(val)
-{
-	setupPatch();
-	// if(arguments.length) // bail if no arguments
-	// {
-	// 	// parse arguments
-	// 	var a = arguments[0];
-	//
-	// 	// safety check for number of sliders
-	// 	if(a<0) a = 0; // too few sliders, set to 0
-	// 	if(a>128) a = 128; // too many sliders, set to 128
-	//
-	// 	// out with the old...
-	// 	if(numsliders) this.patcher.remove(thefunnel); // if we've done this before, get rid of the funnel
-	// 	for(var i=0;i<numsliders;i++) // get rid of the ctlin and uslider objects using the old number of sliders
-	// 	{
-	// 		this.patcher.remove(controlin[i]);
-	// 		this.patcher.remove(thesliders[i]);
-	// 	}
-	//
-	// 	// ...in with the new
-	// 	numsliders = a; // update our global number of sliders to the new value
-	// 	if(numsliders) thefunnel = this.patcher.newdefault(300, 300, "funnel", a); // make the funnel
-	// 	for(var k=0;k<a;k++) // create the new ctlin and uslider objects, connect them to one another and to the funnel
-	// 	{
-	// 		controlin[k] = this.patcher.newdefault(300+(k*100), 50, "ctlin", k+1);
-	// 		thesliders[k] = this.patcher.newdefault(300+(k*100), 100, "uslider");
-	// 		this.patcher.connect(controlin[k], 0, thesliders[k], 0);
-	// 		this.patcher.connect(thesliders[k], 0, thefunnel, k);
-	// 	}
-	//
-	// 	// connect new objects to this js object's inlet
-	// 	ourself = this.box; // assign a Maxobj to our js object
-	// 	if (numsliders) this.patcher.connect(thefunnel, 0, ourself, 0); // connect the funnel to us
-	// }
-	//
-	// else // complain about arguments
-	// {
-	// 	post("sliders message needs arguments");
-	// 	post();
-	// }
-}
-
-function generateVoice(length, hits) {
-	var id = voices.length;
-	outlets += 2;
-	pitchOutlet = outlets - 2;
-	triggerOutlet = outlets - 1;
-	voices.push( new Voice({
-		length: length,
-		hits: hits,
-		pitchOutlet: pitchOutlet,
-		triggerOutlet: triggerOutlet,
-		scale: scale,
-		rule: rule
-	}));
-	var xPos = 10 + id * 120;
-	var cycle = this.patcher.newdefault(xPos, 300, 'cycle~');
-	var adsr = this.patcher.newdefault(xPos, 350, 'adsr~', 5, 50, 0.6, 100);
-	var multiply = this.patcher.newdefault(xPos, 400, '*~');
-
-	connectByTask(cycle, 0, multiply, 0);
-	connectByTask(adsr, 0, multiply, 1);
-
-	connectByTask(this.box, pitchOutlet, cycle, 0);
-	connectByTask(this.box, triggerOutlet, adsr, 0);
-
-	cycle.varname = 'cycle' + id;
-	adsr.varname = 'adsr' + id;
-	multiply.varname = 'multiply' + id;
-
-	var voicePatcher = this.patcher.newdefault(10, 200, 'patcher').subpatcher();
-	voicePatcher.varname = 'voicePatcher';
-	var xPos = 10 + id * 120;
-	var cycle = voicePatcher.newdefault(xPos, 300, 'cycle~');
-	var adsr = voicePatcher.newdefault(xPos, 350, 'adsr~', 5, 50, 0.6, 100);
-	var multiply = voicePatcher.newdefault(xPos, 400, '*~');
-	var pitchInlet = voicePatcher.newdefault(10, 10, 'inlet');
-	var trigInlet = voicePatcher.newdefault(30, 10, 'inlet');
-	connectByTask(cycle, 0, multiply, 0);
-	connectByTask(adsr, 0, multiply, 1);
-
-	connectByTask(pitchInlet, pitchOutlet, cycle, 0);
-	connectByTask(trigInlet, triggerOutlet, adsr, 0);
-
-	cycle.varname = 'cycle' + id;
-	adsr.varname = 'adsr' + id;
-	multiply.varname = 'multiply' + id;
-}
-
-// list -- read from the created funnel object
-function list(val)
-{
-	if(arguments.length==2)
-	{
-		thevalues[arguments[0]] = arguments[1];
+	if (obj.bang) {
+		obj.bang();
 	}
+
 }
 
-// bang -- steps through sequencer
 function bang() {
-	if (offsetVoiceMode) {
-		var voiceIndex = trigOrder[seqcounter % voices.length];
-		voices[voiceIndex].bang();
-	} else {
-		_.forEach(voices, function(voice) {
-			voice.bang();
-		});
+	qcvg.bang();
+}
+
+/*
+ * map controller movement to actions
+ * var 1 corresponds to knob id, var 2 corresponds to value of encoder
+ */
+function list(var1, var2) {
+	var fn = controller[var1] && controller[var1].fn,
+		previousVal = Controller.getPrevVal(var1);
+
+	// lfos (one for each voice)
+	var lfoIndex = 18;
+	if (var1 >= 18) {
+		var id = var1 - lfoIndex;
+		qcvg.voices[id].modulator1 = var2;
+		// console.log('var2', var2);
 	}
 
-	seqcounter++; // increment the sequence
+	// ignore if previousVal hasn't already been set
+	// (this helps with ctlin values defaulting to zero on load)
+	// (no longer needed if i figure out a way to output MIDI cc from controller on load)
+	// note: this is only helpful for knobs, not triggers
+	if (var1 > 16 || previousVal > -1) {
+		fn && fn.call(qcvg, var2, previousVal);
+	}
+
+	// save new value to prevState
+	Controller.saveToPrevState(var1, var2);
 }

@@ -1,1 +1,8 @@
 .DS_Store
+media/*
+npm-debug.log
+_todo.md
+node_modules/*
+*.aiff
+_todo.md
+qcvg.maxpat
