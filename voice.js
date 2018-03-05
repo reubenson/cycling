@@ -67,7 +67,6 @@ function Voice(opts, params) {
 	// needed for managing sequences of different lengths
 	this.main = opts.main;
 	this.bangDivider = this.main.lcm / this.length;
-	console.log('bangDivider', this.bangDivider);
 
 	// if (this.bangDivider == 1) {
 	// 	this.bangDivider = this.main.lcm;
@@ -76,7 +75,6 @@ function Voice(opts, params) {
 
 	// initialize shift register
 	shiftRegister = shiftRegister || _.times(this.main.numberOfVoices, function(){return 1.0});
-	console.log('shiftReg', shiftRegister);
 
 	this.setRegister(params.voiceParams[this.id].register);
 	this.init();
@@ -151,11 +149,9 @@ Voice.prototype = {
 		if (typeof register === 'object') {
 			registerLow = register[0];
 			registerHigh = register[1];
-			console.log('register', register);
 		} else if (typeof register === 'number') {
 			registerLow = register;
 			registerHigh = register + 1;
-			console.log('register', register);
 		} else {
 			registerLow = -1;
 			reigsterHigh = 4;
@@ -195,7 +191,7 @@ Voice.prototype = {
 		var newInterval = this.getPitchRatio[this.currentPosition];
 		var updateSequence = false;
 
-		var PopulateSequenceOnce = this.params.ringChanges;
+		var PopulateSequenceOnce = this.ringChanges;
 		var SingleVoiceModes = this.params.singleVoice || this.params.shiftRegisterMode || this.params.ET;
 		if ( (((!SingleVoiceModes) || this.id == 0) && !PopulateSequenceOnce) || (PopulateSequenceOnce && _counter < this.length)){
 
@@ -210,7 +206,7 @@ Voice.prototype = {
 			updateSequence = true;
 		}
 
-		else if (this.params.ringChanges && _counter % this.length == 0) {
+		else if (this.ringChanges && _counter % this.length == 0) {
 			var iteration = Math.floor( this.index / this.length );
 
 			this.sequence.pitchArray = swap(this.sequence.pitchArray, iteration, this.length);
@@ -300,9 +296,15 @@ Voice.prototype = {
 		// return this.sequence.shouldTrigger(this.index, this.id);
 		if (this.triggerRule === 'LFO') {
 			// console.log('mod1', this.modulator1);
-			return Math.random() > 0.7;
+			return Math.random() >= this.sequence.hits / this.sequence.length;
 			// return this.modulator1 >= 0.5;
-		} else {
+		}
+
+		else if (this.triggerRule === 'random') {
+			return Math.random() > 0.7;
+		}
+
+		else {
 			return this.evaluateTwill() && this.sequence.shouldTrigger(this.index, this.id);
 		}
 	},
@@ -361,9 +363,7 @@ Voice.prototype = {
 
 	processSubdivision: function() {
 		var subdivision = this.hasOwnProperty('subdivision') ? this.subdivision : 1;
-		if (subdivision > 1) {
-			console.log('subdivision', subdivision);
-		}
+
 		this.sequence = new sequence(this.sequenceType, this.length, this.hits, subdivision);
 		this.length *= subdivision;
 	},

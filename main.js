@@ -234,6 +234,16 @@ QCVG.prototype = {
 			connectByTask(this.patcher, metro, 0, modulators[i], 0);
 			connectByTask(this.patcher, modulators[i], 0, this.funnel, i + Object.keys(controller).length);
 		}
+
+		// controller presets
+		var controllerPresets = this.preset.controller;
+		if (controllerPresets) {
+			_.forEach(controllerPresets, function(value, key) {
+				_.times(this.numberOfVoices, function(i){
+					propagateChange(key, value, i);
+				})
+			}.bind(this));
+		}
 	},
 
 	generateVoice: function(length, hits) {

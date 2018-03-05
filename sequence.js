@@ -31,8 +31,6 @@ function generateTriggerSequence(type, length, hits, subdivision) {
 		});
 
 		trigArray = newArr;
-		// this.length = trigArray.length;
-		// console.log('new length', trigArray);
 	}
 
 	return trigArray;
@@ -69,15 +67,12 @@ function generateEuclideanSequence (num_slots, num_pulses) {
 	 }
    while (remainder[level] > 1);
    count[level] = divisor;
-	 console.log('level', level);
-	 console.log('count', count);
-	 console.log('remainder', remainder);
+
   /*---------------------
    * Now build the bitmap string
    */
 	 var arr = [];
    build_string (level, arr, count, remainder);
-	 console.log('arr', arr);
 	 return arr;
 }
 
@@ -94,7 +89,6 @@ function build_string (level, arr, count, remainder) {
 	}
 	else {
 		if (!count) {
-			console.log('none?', count);
 			return;
 		}
 		for (var i=0; i < count[level]; i++) {
@@ -111,10 +105,10 @@ function Sequence(type, length, hits, subdivision) {
   this.length = length;
   this.triggerArray = generateTriggerSequence(type, length, hits, subdivision);
 	this.pitchArray = new Array(length);
+	this.hits = hits;
 
 	console.log('trigger array', this.triggerArray);
 	this.length = this.triggerArray.length;
-	// console.log('length', this.length);
 }
 
 Sequence.prototype = {

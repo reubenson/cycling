@@ -70,12 +70,35 @@ function peaklim (x, y, patcher) {
   peaklim.mode(0);
   peaklim.ingain(0);
   peaklim.threshold(-3);
+  // peaklim.outgain(-6);
 
   subpatcher.connect(inlet, 0, peaklim, 0);
   subpatcher.connect(compressor, 0, outlet, 0);
 
   // hide window
-  // subpatcher.wind.visible = false;
+  subpatcher.wind.visible = false;
+
+  return patchObj;
+}
+
+// glissando
+function glissando (x, y, patcher, id) {
+  var patchObj = patcher.newdefault(x, y, 'patcher', 'glissando'),
+    subpatcher = patchObj.subpatcher(),
+    inlet = subpatcher.newdefault(10, 10, 'inlet'),
+    rampAmount = subpatcher.newdefault(110, 60, 'number', 0),
+    rampsmooth = subpatcher.newdefault(10, 60, 'rampsmooth~'),
+    outlet = subpatcher.newdefault(10, 210, 'outlet');
+
+  subpatcher.connect(inlet, 0, rampsmooth, 0);
+  subpatcher.connect(rampsmooth, 0, outlet, 0);
+  subpatcher.connect(rampAmount, 0, rampsmooth, 1);
+  subpatcher.connect(rampAmount, 0, rampsmooth, 2);
+
+  subscribeToChange('glissando', rampAmount, 'int', id);
+
+  // hide window
+  subpatcher.wind.visible = false;
 
   return patchObj;
 }
@@ -250,47 +273,6 @@ function harmonicOscillator (x, y, patcher) {
   return patchObj;
 }
 
-// // FM Oscillator
-// function fmOscillator(x, y, patcher, id) {
-//   var patchObj = patcher.newdefault(x, y, 'patcher', 'fm-oscillator'),
-//     subpatcher = patchObj.subpatcher(),
-//     inlet = subpatcher.newdefault(10, 10, 'inlet'),
-//     fmInlet = subpatcher.newdefault(60, 10, 'inlet'),
-//     outlet = subpatcher.newdefault(10, 310, 'outlet'),
-//     carrierInput = subpatcher.newdefault(10, 210, '+~'),
-//     carrier = subpatcher.newdefault(10, 260, 'cycle~'),
-//     modulatorMultiplier = subpatcher.newdefault(110, 10, '*~', 1.0),
-//     modulator = subpatcher.newdefault(160, 60, 'cycle~'),
-//     modulatorTotal = subpatcher.newdefault(160, 110, '*~'),
-//     modulationX = subpatcher.newdefault(160, 160, '*~'),
-//     modulationIndex = subpatcher.newdefault(160, 210, '*~', 0.0);
-//
-//     // wiring modulator
-//     subpatcher.connect(inlet, 0, modulatorMultiplier, 0);
-//     subpatcher.connect(modulatorMultiplier, 0, modulator, 0);
-//     subpatcher.connect(modulator, 0, modulatorTotal, 0);
-//
-//     subpatcher.connect(fmInlet, 0, modulatorTotal, 1);
-//     subpatcher.connect(modulatorTotal, 0, modulationX, 0);
-//     subpatcher.connect(inlet, 0, modulationX, 1);
-//     subpatcher.connect(modulationX, 0, modulationIndex, 0);
-//     subpatcher.connect(modulationIndex, 0, carrierInput, 1);
-//
-//
-//     // wiring carrier
-//     subpatcher.connect(inlet, 0, carrierInput, 0);
-//     subpatcher.connect(carrierInput, 0, carrier, 0);
-//     subpatcher.connect(carrier, 0, outlet, 0);
-//
-//     subscribeToChange('fmIndex', modulationIndex, 'float', id);
-//     subscribeToChange('fmRatio', modulatorMultiplier, 'float', id);
-//
-//     // hide subpatch window
-//     subpatcher.wind.visible = false;
-//
-//     return patchObj;
-// }
-
 // chord oscillator
 // deprecated???
 // function chordOscillator(x, y, patcher, id, voiceParams) {
@@ -343,59 +325,13 @@ function harmonicOscillator (x, y, patcher) {
 //     return patchObj;
 // }
 
-// harmonic drone
-// TODO: let sequence events alter the weights of frequencies?
-function harmonicDrone(x, y, patcher, id, voiceParams) {
-  var spreadFrequency = 0.05,
-    baseFrequency = this.baseFrequency,
-    numOscillators = 18,
-    arr = [],
-    frequencySmoothingSamples = 1024,
-    amplitudeSmoothingSamples = 1024;
-
-
-  function normalDistribution(x, mean, deviation) {
-    var exp = -Math.pow(x - mean, 2) / ( 2 * Math.pow(deviation, 2)),
-      base = Math.exp(1) / ( deviation * Math.sqrt(2 * Math.PI) );
-
-    return Math.pow(base, exp);
-  }
-
-  var patchObj = patcher.newdefault(x, y, 'patcher', 'harmonic-drone'),
-    subpatcher = patchObj.subpatcher(),
-    oscbank = subpatcher.newdefault(10, 60, 'ioscbank~', numOscillators, frequencySmoothingSamples, amplitudeSmoothingSamples),
-    // inlet = subpatcher.newdefault(10, 10, 'inlet'),
-    outlet = subpatcher.newdefault(10, 360, 'outlet');
-
-
-  _.times(numOscillators, function(i) {
-    var amp = 0.5 * normalDistribution(i, 4, 1),
-      frequency = baseFrequency * i;
-
-    if (i < 2) {
-      frequency = baseFrequency * Math.pow(2, -2 + i);
-    }
-    arr.push(frequency);
-    arr.push(amp);
-  });
-
-  oscbank.set(arr);
-
-  // hide subpatch window
-  subpatcher.wind.visible = false;
-
-  subpatcher.connect(oscbank, 0, outlet, 0);
-
-  return patchObj;
-}
-
-
 // sound source (media or cycle)
 function soundSource (x, y, patcher, voiceParams, id) {
 	var patchObj = patcher.newdefault(x, y, 'patcher', 'soundSource'),
 		subpatcher = patchObj.subpatcher(),
-		sourceInlet1 = subpatcher.newdefault(10, 10, 'inlet'),
-    sourceInlet2 = subpatcher.newdefault(100, 10, 'inlet'),
+		sourceInlet1 = subpatcher.newdefault(10, 10, 'inlet'), // pitch input
+    sourceInlet2 = subpatcher.newdefault(100, 10, 'inlet'), // adsr input
+    sourceInlet3 = subpatcher.newdefault(190, 10, 'inlet'), // trigger input
 		sourceOutlet = subpatcher.newdefault(10, 410 , 'outlet'),
     type = voiceParams.soundSource,
 
@@ -417,14 +353,14 @@ function soundSource (x, y, patcher, voiceParams, id) {
 
     _.forEach(chord, function(chordVal, i) {
       var chordIndex = subpatcher.newdefault(10, 60, '*~', chordVal),
-        // cycle = instruments[instrumentName].call(this, 10, 110, subpatcher, id),
-        cycle = instruments.generateInstrument.call(this, 10, 110, instrumentName, subpatcher, id),
+        instrument = instruments.generateInstrument.call(this, 10, 110, instrumentName, subpatcher, id),
         chordAmplitude = subpatcher.newdefault(10, 160, '*~', 1 / chord.length);
 
       subpatcher.connect(sourceInlet1, 0, chordIndex, 0);
-      subpatcher.connect(chordIndex, 0, cycle, 0);
-      subpatcher.connect(sourceInlet2, 0, cycle, 1);
-      subpatcher.connect(cycle, 0, chordAmplitude, 0);
+      subpatcher.connect(chordIndex, 0, instrument, 0);
+      subpatcher.connect(sourceInlet2, 0, instrument, 1);
+      subpatcher.connect(sourceInlet3, 0, instrument, 2);
+      subpatcher.connect(instrument, 0, chordAmplitude, 0);
       subpatcher.connect(chordAmplitude, 0, vca, 0);
       subpatcher.connect(detuneSources[i], 0, chordIndex, 0);
     }.bind(this));
@@ -440,7 +376,6 @@ function soundSource (x, y, patcher, voiceParams, id) {
     this.idCounter = this.idCounter || 0;
 		this.idCounter++;
 
-		// var expr = patcher.newdefault(10, 30, 'expr', '(log($f1) / log(2)) / 10.0'),
 		var expr = subpatcher.newdefault(10, 30, 'expr', '(log($f1)/log(2))/10.0'),
 			snapshot = subpatcher.newdefault(50, 30, 'snapshot~', 10),
 			sig = subpatcher.newdefault(10, 50, 'sig~'),
@@ -588,22 +523,38 @@ function stereoPan (x, y, patcher, id) {
 function metronome (x, y, patcher) {
   var patchObj = patcher.newdefault(x, y, 'patcher', 'metronome'),
     subpatcher = patchObj.subpatcher(),
-    phasor = subpatcher.newdefault(10, 160, 'phasor~'),
-    edgeDetector = subpatcher.newdefault(150, 160, 'edge~'),
-    round = subpatcher.newdefault(300, 100, 'round~', '1.0'),
+    phasor = subpatcher.newdefault(40, 210, 'phasor~'),
     inlet1 = subpatcher.newdefault(10, 10, 'inlet'),
     inlet2 = subpatcher.newdefault(60, 10, 'inlet'),
-    expr = subpatcher.newdefault(10, 100, 'expr', '1000.*$f2/$f1'),
+    expr = subpatcher.newdefault(40, 60, 'expr', '1000.*$f2/$f1'),
+    exprSig = subpatcher.newdefault(40, 110, 'sig~'),
+    swingInput = subpatcher.newdefault(150, 10, 'expr', '1000.*8/$f1'),
+    swingAmt = subpatcher.newdefault(150, 60, '*~', 0),
+    swingCycle = subpatcher.newdefault(150, 110, 'cycle~'),
+    swingMult = subpatcher.newdefault(150, 160, '*~'),
+    phasorInput = subpatcher.newdefault(40, 160, '+~'),
+    phasorSnapshot = subpatcher.newdefault(90, 260, 'snapshot~', 1),
     lcm = subpatcher.newdefault(100, 10, 'number', this.lcm),
-    gate = subpatcher.newdefault(10, 210, 'gate', 1),
-    outlet = subpatcher.newdefault(10, 260, 'outlet');
+    round = subpatcher.newdefault(40, 260, 'round~', '1.0'),
+    edgeDetector = subpatcher.newdefault(40, 310, 'edge~'),
+    gate = subpatcher.newdefault(10, 360, 'gate', 1),
+    outlet = subpatcher.newdefault(10, 410, 'outlet');
 
   lcm.int(this.lcm);
 
   // connections
   subpatcher.connect(inlet2, 0, expr, 0);
   subpatcher.connect(lcm, 0, expr, 1);
-  subpatcher.connect(expr, 0, phasor, 0);
+  subpatcher.connect(expr, 0, exprSig, 0);
+  subpatcher.connect(exprSig, 0, swingAmt, 0);
+  subpatcher.connect(inlet2, 0, swingInput, 0);
+  subpatcher.connect(swingInput, 0, swingCycle, 0);
+  subpatcher.connect(swingCycle, 0, swingMult, 0);
+  subpatcher.connect(swingAmt, 0, swingMult, 1);
+  subpatcher.connect(exprSig, 0, phasorInput, 0);
+  subpatcher.connect(swingMult, 0, phasorInput, 1);
+  subpatcher.connect(phasorInput, 0, phasorSnapshot, 0);
+  subpatcher.connect(phasorSnapshot, 0, phasor, 0);
   subpatcher.connect(phasor, 0, round, 0)
   subpatcher.connect(round, 0, edgeDetector, 0);
   subpatcher.connect(edgeDetector, 1, gate, 1);
@@ -611,6 +562,8 @@ function metronome (x, y, patcher) {
   subpatcher.connect(gate, 0, outlet, 0);
 
   lcm.bang();
+
+  subscribeToChange('metronomeSwing', swingAmt, 'float');
 
   // hide subpatch window
   subpatcher.wind.visible = false;
@@ -654,7 +607,9 @@ function stereoOutput(x, y, patcher) {
     record = subpatcher.newdefault(10, 260, 'sfrecord~', 2),
 
     // output to channels 5 and 6 (Virtual 1 and 2) on apollo twin
-    dac = subpatcher.newdefault(10, 310, 'dac~', [21, 22]);
+    // if not bypassing expert sleepers
+    outputChannels = this.preset.bypassExpertSleepers ? [1, 2] : [21, 22],
+    dac = subpatcher.newdefault(10, 310, 'dac~', outputChannels);
 
   subpatcher.connect(inlet1, 0, dac, 0);
   subpatcher.connect(inlet2, 0, dac, 1);
@@ -664,7 +619,6 @@ function stereoOutput(x, y, patcher) {
   subpatcher.connect(inlet3, 0, record, 0);
   subpatcher.connect(inlet3, 0, message, 0);
 
-  console.log('test', filename);
   message.set('open ' + filename);
   // record.open(filename);
 
@@ -700,27 +654,32 @@ function voice(length, hits) {
     pitchInlet = voicePatcher.newdefault(10, 10, 'inlet'),
     trigInlet = voicePatcher.newdefault(50, 10, 'inlet'),
 
-    outletLeft = voicePatcher.newdefault(300, 10, 'outlet'),
-    outletRight = voicePatcher.newdefault(300, 60, 'outlet'),
+    outletLeft = voicePatcher.newdefault(10, 360, 'outlet'),
+    outletRight = voicePatcher.newdefault(60, 360, 'outlet'),
 
     frequencyMultiplier = this.patcher.newdefault(xPos, 360, '*~'),
     sig = this.patcher.getnamed('sig');
 
   var post = this.voiceParams[id].post;
-  var useQMMF = this.voiceParams[id].qmmf;
+  var useQMMF = this.voiceParams[id].qmmf && !this.preset.bypassExpertSleepers;
 
 
   // construct sound source
   var voiceParams = this.voiceParams[id],
     soundSourceObj = soundSource.call(this, 10, 110, voicePatcher, voiceParams, id);
 
+  // var construct glissando
+  var glissandoObj = glissando.call(this, 10, 40, voicePatcher, id);
+  voicePatcher.connect(pitchInlet, 0, glissandoObj, 0);
+
   // generate routing for voice
-  voicePatcher.connect(pitchInlet, 0, soundSourceObj, 0);
+  voicePatcher.connect(glissandoObj, 0, soundSourceObj, 0);
 
   // construct ADSR and connect
-  var adsrObject = adsr.call(this, 160, 110, voicePatcher, id);
+  var adsrObject = adsr.call(this, 110, 60, voicePatcher, id);
   voicePatcher.connect(trigInlet, 0, adsrObject, 0);
   voicePatcher.connect(adsrObject, 0, soundSourceObj, 1);
+  voicePatcher.connect(trigInlet, 0, soundSourceObj, 2);
 
   // construct sound source modifier and connect
   var dubArray = this.voiceParams[id].dub;
@@ -729,15 +688,14 @@ function voice(length, hits) {
   voicePatcher.connect(soundSourceObj, 0, voiceDubObj, 0);
 
   // generate effects chain
-  var postChainObj = postChain.call(this, 110, 260, voicePatcher, id);
+  var postChainObj = postChain.call(this, 10, 260, voicePatcher, id);
   voicePatcher.connect(voiceDubObj, 0, postChainObj, 0);
 
   // generate stereo pan
-  var stereoPanObj = stereoPan.call(this, 310, 60, voicePatcher, id);
+  var stereoPanObj = stereoPan.call(this, 10, 310, voicePatcher, id);
 
   // route through Expert Sleepers
   if (useQMMF) {
-    // var dac = voicePatcher.newdefault(500, 200, 'dac~', )
     var esOutput = expertSleepersInterface.call(this, {
         patcher: voicePatcher,
         inputFrequency: pitchInlet, // actually just inputFrequency for now
@@ -753,8 +711,17 @@ function voice(length, hits) {
     voicePatcher.connect(pitchInlet, 0, cvOutputObj, 0);
     voicePatcher.connect(voiceDubObj, 0, cvOutputObj, 1);
   } else {
+    // generate delay line
+    var delayObj = delay.call(this, 10, 210, voicePatcher, id);
+    // var feedback = voicePatcher.newdefault(110, 210, '*~', 1);
+    voicePatcher.connect(postChainObj, 0, delayObj, 0);
+    voicePatcher.connect(delayObj, 0, delayObj, 1);
+
+    // pass delay line to ES input
+    voicePatcher.connect(delayObj, 0, stereoPanObj, 0);
+
     // voicePatcher.connect(soundSourceObj, 0, stereoPanObj, 0);
-    voicePatcher.connect(postChainObj, 0, stereoPanObj, 0);
+    // voicePatcher.connect(postChainObj, 0, stereoPanObj, 0);
     // connectByTask(voicePatcher, multiply, 0, out, 0);
   }
 
@@ -775,6 +742,14 @@ function voice(length, hits) {
   // connect to delay line
   // var delay = generate.delay(voicePatcher);
   // this.patcher.connect(voicePatch, 0, delay, 0);
+
+  // controller presets
+  var controllerPresets = this.voiceParams[id].controller;
+  if (controllerPresets) {
+    _.forEach(controllerPresets, function(value, key) {
+      propagateChange(key, value, id);
+    });
+  }
 
   // hide subpatch window
   voicePatcher.wind.visible = false;
@@ -908,6 +883,42 @@ function phaser (x, y, patcher, num, id) {
   return patchObj;
 }
 
+function lpg (x, y, patcher, id) {
+  var patchObj = patcher.newdefault(x, y, 'patcher', 'lpg'),
+    subpatcher = patchObj.subpatcher(),
+    inlet = subpatcher.newdefault(10, 10, 'inlet'),
+    abs = subpatcher.newdefault(120, 60, 'abs~'),
+    slide = subpatcher.newdefault(120, 110, 'slide~', 500, 500),
+    edge = subpatcher.newdefault(230, 60, 'edge~'),
+    click = subpatcher.newdefault(230, 110, 'click~'),
+    adsr = subpatcher.newdefault(230, 160, 'adsr~', 0, 0, 1, 200),
+    envelope = subpatcher.newdefault(230, 210, '*~', 500),
+    maximum = subpatcher.newdefault(120, 160, 'maximum~'),
+    onepole = subpatcher.newdefault(10, 260, 'onepole~'),
+    vca = subpatcher.newdefault(10, 310, '*~'),
+    outlet = subpatcher.newdefault(10, 360, 'outlet');
+
+  subpatcher.connect(inlet, 0, onepole, 0);
+  subpatcher.connect(inlet, 0, edge, 0);
+  subpatcher.connect(inlet, 0, abs, 0);
+  subpatcher.connect(abs, 0, slide, 0);
+  subpatcher.connect(edge, 0, click, 0);
+  subpatcher.connect(click, 0, adsr, 0);
+  subpatcher.connect(slide, 0, maximum, 0);
+  subpatcher.connect(adsr, 0, maximum, 1);
+  subpatcher.connect(maximum, 0, envelope, 0);
+  subpatcher.connect(envelope, 0, onepole, 1);
+  subpatcher.connect(onepole, 0, vca, 0);
+  subpatcher.connect(maximum, 0, vca, 1);
+  subpatcher.connect(vca, 0, outlet, 0);
+
+
+  // hide new subpatch window
+  subpatcher.wind.visible = false;
+
+  return patchObj;
+}
+
 // effects chain
 function postChain (x, y, patcher, id) {
   var patchObj = patcher.newdefault(x, y, 'patcher', 'post-chain'),
@@ -925,24 +936,26 @@ function postChain (x, y, patcher, id) {
         newObject = phaser(10 + i * 100, 110, subpatcher, 8, id);
       } else if (item === 'cverb') {
         newObject = subpatcher.newdefault(10 + i * 100, 110, 'cverb~', 100);
+      } else if ( item === 'comb') {
+        newObject = subpatcher.newdefault(10 + i * 100, 110, 'comb~', 100);
+      } else if ( item === 'lpg') {
+        newObject = lpg.call(this, 10 + i * 100, 110, subpatcher, id);
       }
 
       if (lastObject && newObject) {
         subpatcher.connect(lastObject, 0, newObject, 0);
       } else {
-        subpatcher.connect(inlet, 0, newObject, 0);
+        subpatcher.connect(amplitude, 0, newObject, 0);
       }
       lastObject = newObject;
     });
 
-    // subpatcher.connect(lastObject, 0, amplitude, 0);
-    subpatcher.connect(amplitude, 0, lastObject, 0);
+    subpatcher.connect(lastObject, 0, outlet, 0);
   } else {
-    // subpatcher.connect(inlet, 0, amplitude, 0);
+    subpatcher.connect(amplitude, 0, outlet, 0);
   }
 
   subpatcher.connect(inlet, 0, amplitude, 0);
-  subpatcher.connect(amplitude, 0, outlet, 0);
   subscribeToChange('volume', amplitude, 'float', id);
 
   // hide new subpatch window
@@ -965,5 +978,7 @@ exports.generate = {
   noteInDetector: noteInDetector,
   postChain: postChain,
   stereoOutput: stereoOutput,
-  cvOutput: cvOutput
+  cvOutput: cvOutput,
+  glissando: glissando
+
 }

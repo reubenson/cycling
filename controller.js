@@ -7,7 +7,8 @@ var prevState = {},
     4: false,
     5: false,
     6: false,
-    7: false
+    7: false,
+    8: false,
   };
 
 function mapMidiToSampleFamily(val, library) {
@@ -53,65 +54,79 @@ function getVoiceSelection () {
   return id;
 }
 
-function modulateVoiceParam1(val) {
-  var range = [0, 10],
-    mappedValue = mapToRange(range, val),
-    id = getVoiceSelection(),
-    filepath = mapMidiToSampleFamily(val, 'TR808'),
-    clickFilter = mapToRange([2, 64], val),
-    fmRatio = mapToRange([0.5, 20], val, 0.125);
+function propagateChanges(data, id) {
+  var ids = [id];
 
-
-  if (id >= 0) {
-    propagateChange('voiceParam1', mappedValue, id);
-    propagateChange('fmRatio', fmRatio, id);
-    propagateChange('mediaFile', filepath, id);
-    propagateChange('clickFilter', clickFilter, id);
-
-  } else {
-    _.forEach(voiceControl, function(val, i){
-      propagateChange('voiceParam1', mappedValue, i);
-      propagateChange('fmRatio', fmRatio, i);
-      propagateChange('mediaFile', filepath, i);
-      propagateChange('clickFilter', clickFilter, i);
+  if (typeof id === 'undefined') {
+    ids = Object.keys(voiceControl);
+    ids = _.map(ids, function(id) {
+      return parseInt(id);
     });
   }
+
+  _.forEach(ids, function(id) {
+    _.forEach(data, function(value, key) {
+      propagateChange(key, value, id);
+    });
+  })
+}
+
+function modulateGlissando(val) {
+  var id = getVoiceSelection();
+
+  propagateChanges({
+    glissando: mapToRange([0, 20000], val)
+  }, id);
+}
+
+function modulateSwing(val) {
+  propagateChange('metronomeSwing', mapToRange([0, 0.5], val))
+}
+
+function modulateVoiceParam1(val) {
+  var id = getVoiceSelection();
+
+  propagateChanges({
+    voiceParam1: mapToRange([0, 10], val),
+    fmRatio: mapToRange([0.5, 20], val, 0.125),
+    mediaFile: mapMidiToSampleFamily(val, 'TR808'),
+    mediaLoopLength: mapToRange([1, 500], val),
+    clickFilter: mapToRange([2, 64], val),
+    interpMix: mapToRange([0, 1], val),
+    noiseQ: mapToRange([1, 1000], val),
+    rissetSpeed: mapToRange([-10, 10], val),
+    recursiveAMAmount: mapToRange([0, 1], val),
+    recursiveFMAmount: mapToRange([0, 2], val)
+  }, id);
 }
 
 function modulateVoiceParam2(val) {
-  var range = [0, 20],
-    fmIndex = mapToRange([0, 10], val, 0.125),
-    pitchShift = mapToRange([0.25, 4], val),
-    clickFeedback = mapToRange([0.5, 1], val),
-    id = getVoiceSelection();
+  var id = getVoiceSelection();
 
-    console.log('clickFeedback', clickFeedback);
-  // console.log('pitchShift', pitchShift);
-
-  if (id >= 0) {
-    propagateChange('fmIndex', fmIndex, id);
-    propagateChange('pitchShift', pitchShift, this.id);
-    propagateChange('clickFeedback', clickFeedback, id);
-  } else {
-    _.forEach(voiceControl, function(val, i){
-      propagateChange('fmIndex', fmIndex, i);
-      propagateChange('pitchShift', pitchShift, this.id);
-      propagateChange('clickFeedback', clickFeedback, i);
-    });
-  }
+  propagateChanges({
+    fmIndex: mapToRange([0, 10], val, 0.125),
+    pitchShift: mapToRange([0.25, 4], val),
+    clickFeedback: mapToRange([0, 1], val),
+    noiseHarmonics: mapToRange([1, 4], val, 0.125),
+    recursiveAMInterval: mapToRange([0.5, 4], val, 0.125),
+    recursiveFMInterval: mapToRange([0.5, 4], val, 0.125)
+  }, id);
 }
 
 function modulateVoiceParam3(val) {
-  var chordSpread = mapToRange([0, 100], val),
-    id = getVoiceSelection();
+  var id = getVoiceSelection();
 
-  if (id >= 0) {
-    propagateChange('chordSpread', chordSpread, id);
-  } else {
-    _.forEach(voiceControl, function(val, i){
-      propagateChange('chordSpread', chordSpread, i);
-    });
-  }
+  propagateChanges({
+    clickMix: mapToRange([0, 1], val)
+  }, id);
+}
+
+function modulateChordSpread(val) {
+  var id = getVoiceSelection();
+
+  propagateChanges({
+    chordSpread: mapToRange([0, 100], val)
+  }, id);
 }
 
 function mapToRange(range, midiVal, increments) {
@@ -159,39 +174,27 @@ function modulateRegister(val) {
       // propagateChange(param, val, id);
     }.bind(this));
   }
-
-  // propagateChange('baseFrequency', frequency);
 }
 
 function modulateEnvelopeFollower(val) {
-  var newVal = mapToRange([0, 1], val);
-    voiceID = getVoiceSelection();
+  var id = getVoiceSelection();
 
-  if (voiceID >= 0) {
-    propagateChange('envelopeFollower', newVal, voiceID);
-  } else {
-    _.forEach(voiceControl, function(temp, id){
-      propagateChange('envelopeFollower', newVal, id);
-    });
-  }
+  propagateChanges({
+    envelopeFollower: mapToRange([0, 1], val)
+  }, id);
 }
 
 function modulateVolume(val) {
-  var newVal = mapToRange([0, 4], val);
-    voiceID = getVoiceSelection();
+  var id = getVoiceSelection();
 
-  if (voiceID >= 0) {
-    propagateChange('volume', newVal, voiceID);
-  } else {
-    _.forEach(voiceControl, function(temp, id){
-      propagateChange('volume', newVal, id);
-    });
-  }
+  propagateChanges({
+    volume: mapToRange([0, 4], val)
+  }, id);
 }
 
 function modulateADSR(param, val) {
   var maxValue = 5000,
-    voiceID = getVoiceSelection();
+    id = getVoiceSelection();
 
   val = Math.pow(val / 127, 2);
 
@@ -199,13 +202,10 @@ function modulateADSR(param, val) {
     val *= maxValue;
   }
 
-  if (voiceID >= 0) {
-    propagateChange(param, val, voiceID);
-  } else {
-    _.forEach(voiceControl, function(temp, id){
-      propagateChange(param, val, id);
-    });
-  }
+  var changes = {};
+  changes[param] = val;
+
+  propagateChanges(changes, id);
 }
 
 function modulateAttack(val) {
@@ -225,26 +225,26 @@ function modulateRelease(val) {
 }
 
 function modulateDelayFeedback(val) {
-  var feedbackLevel = val / 127.;
-  _.forEach(this.voices, function(voice, id) {
-    propagateChange('delayFeedback', feedbackLevel, id);
-  });
+  var feedbackLevel = val / 127.,
+    id = getVoiceSelection();
+
+  propagateChanges({
+    delayFeedback: feedbackLevel
+  }, id);
 }
 
 function modulateDelayLength(val) {
-  var modFactor = mapToRange([this.lcm / 16, this.lcm], val);
+  var modFactor = mapToRange([this.lcm / 16, this.lcm], val),
+    id = getVoiceSelection();
 
   modFactor = Math.round( (modFactor * this.lcm) ) / this.lcm ;
 
-  console.log('modFactor', modFactor);
-  // console.log('this.clock', this.clock);
   var delay = (this.clock / this.lcm) * modFactor;
   console.log('delay', delay);
 
-  _.forEach(this.voices, function(voice, id) {
-    // console.log('length', length);
-    propagateChange('delayLength', delay, id);
-  });
+  propagateChanges({
+    delayLength: delay
+  }, id);
 }
 
 function delayModulation(val) {
@@ -252,14 +252,9 @@ function delayModulation(val) {
     mappedValue = mapToRange(range, val),
     id = getVoiceSelection();
 
-  if (id >= 0) {
-    propagateChange('delayModulation', mappedValue, id);
-
-  } else {
-    _.forEach(voiceControl, function(val, i){
-      propagateChange('delayModulation', mappedValue, i);
-    });
-  }
+  propagateChanges({
+    delayModulation: mappedValue
+  }, id);
 }
 
 function modulateMainFrequency (val) {
@@ -270,33 +265,21 @@ function modulateMainFrequency (val) {
   newValue = Math.round(newValue * 8) / 8;
 
   qcvg.frequency = newValue;
-  if (id >= 0) {
-    propagateChange('modulator1', newValue, id);
-  } else {
-    _.forEach(voiceControl, function(val, i){
-      propagateChange('modulator1', newValue, i);
-    })
-  }
+
+  propagateChanges({
+    modulator1: newValue
+  }, id);
 
   console.log('newval', newValue);
 }
 
 function modulateMainPhase (val) {
-  var newValue = mapToRange([0, 1], val),
-    id = getVoiceSelection();
+  // var newValue = mapToRange([0, 1], val),
+  var id = getVoiceSelection();
 
-  // round to 1/64
-  newValue = Math.round(newValue * 64) / 64;
-
-  // qcvg.frequency = newValue;
-  // propagateChange('modulator1', newValue);
-  if (id >= 0) {
-    propagateChange('modulatorPhase', newValue, id);
-  } else {
-    _.forEach(voiceControl, function(val, i){
-      propagateChange('modulatorPhase', newValue, i);
-    })
-  }
+  propagateChanges({
+    modulatorPhase: mapToRange([0, 1], val, 1/64),
+  }, id);
 
   console.log('phase val', newValue);
 }
@@ -306,17 +289,13 @@ function toggleVoiceControl(id) {
 }
 
 function modulatePhaserResonance (val) {
-  var range = [0,1],
-    newVal = mapToRange(range, val),
-    id = getVoiceSelection();
+  // var range = [0,1],
+    // newVal = mapToRange([0, 1], val),
+  var id = getVoiceSelection();
 
-  if (id >= 0) {
-    propagateChange('phaserResonance', newVal, id);
-  } else {
-    _.forEach(voiceControl, function(val, i){
-      propagateChange('phaserResonance', newVal, i);
-    })
-  }
+  propagateChanges({
+    phaserResonance: mapToRange([0, 1], val)
+  }, id);
 }
 
 function handleMPC (val) {
@@ -424,15 +403,18 @@ var controller = {
     },
     14: {
       channel: 91,
-      fn: delayModulation
+      fn: modulateChordSpread
+      // fn: delayModulation
     },
     15: {
       channel: 79,
-      fn: modulateEnvelopeFollower
+      fn: modulateGlissando
+      // fn: modulateEnvelopeFollower
     },
     16: {
       channel: 72,
-      fn: modulateMainPhase
+      fn: modulateSwing
+      // fn: modulateMainPhase
     },
 
     // handles MPC buttons 1-16
@@ -454,4 +436,3 @@ controller.getPrevVal = function (channel) {
 
 exports.controller = controller;
 // exports.saveToPrevState = saveToPrevState;
-// exports.getP

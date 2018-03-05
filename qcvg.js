@@ -9,14 +9,14 @@ var Voice = require('voice').constructor,
 
 	// global obj to store MAX objects in for easy lookup
 	GLOBAL = {},
-	saveToGlobal = function (obj, id) {
-	  var keys = Object.keys(obj);
-
-	  _.forEach(keys, function(key){
-	    GLOBAL[key] = GLOBAL[key] || {};
-	    GLOBAL[key][id] = obj[key];
-	  });
-	},
+	// saveToGlobal = function (obj, id) {
+	//   var keys = Object.keys(obj);
+  //
+	//   _.forEach(keys, function(key){
+	//     GLOBAL[key] = GLOBAL[key] || {};
+	//     GLOBAL[key][id] = obj[key];
+	//   });
+	// },
 
 	console = {
 		log: function(a, b) {
@@ -49,21 +49,28 @@ function subscribeToChange(key, object, action, id) {
 	}
 }
 function propagateChange(key, value, id) {
-	var subscribers;
+	var subscribers,
+		logChange = true;
 
 	try {
 		subscribers = (typeof id === 'undefined') ? GLOB[key] : GLOB[key][id];
 	} catch (e) {
-		console.log('no subscribers found for global key:', key);
+		// console.log('no subscribers found for global key:', key);
 		return;
 	}
 
 	_.forEach(subscribers, function(subscriber) {
-		subscriber.maxObject[subscriber.action](value);
+		var maxObject = subscriber.maxObject,
+			action = subscriber.action;
+
+		maxObject[action](value);
+		if (key != 'voiceTrigger' && logChange) {
+			console.log('controller: ' + key + ' -> ', value);
+		}
 	});
 }
 
-this.preset = Presets[0];
+this.preset = Presets[1];
 var numberOfVoices = this.preset.voiceParams.length;
 
 inlets = 1;
