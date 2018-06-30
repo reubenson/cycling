@@ -90,17 +90,33 @@ var instruments = {
     p.wind.visible = false;
   },
 
-  // media
-  media: function(p, id) {
+  // TR808
+  TR808: function(p, id) {
+    // TODO: move controller fn here?
+    function mapMidiToSampleFamily(val, library) {
+      var samples = _.map(media[library], function(voice){
+        var length = voice.length;
+
+        return voice[length-1];
+      });
+
+      for (var i = 0; i < samples.length; i++) {
+        if (val/127 <= (i+1)/(samples.length)) {
+          console.log('sample', samples[i]);
+          return samples[i];
+        }
+      }
+    }
+
     var inlet = p.newdefault(10, 10, 'inlet'),
       inlet2 = p.newdefault(60, 10, 'inlet'),
       outlet = p.newdefault(10, 310, 'outlet'),
       pitchRatio = p.newdefault(10, 60, '/~', this.baseFrequency),
       sfplay = p.newdefault(10, 110, 'sfplay~'),
-      file = this.voiceParams[id].file,
-      folder = p.newdefault(300, 300, 'folder', this.voiceParams[id].dir);
+      key = this.voiceParams[id].key,
+      files = media['TR808'][key],
+      file = files[files.length-1];
 
-    folder.bang();
     p.connect(inlet, 0, pitchRatio, 0);
     p.connect(pitchRatio, 0, sfplay, 1);
     p.connect(sfplay, 0, outlet, 0);
@@ -108,7 +124,6 @@ var instruments = {
     sfplay.open(file);
     sfplay.slurtime(5.0);
 
-    // sfplay.loop(1); // temp
 
     var speedMode = false;
     if (true) {
@@ -123,7 +138,8 @@ var instruments = {
     }
 
     subscribeToChange('voiceTrigger', sfplay, 'message', id);
-    subscribeToChange('mediaFile', sfplay, 'open', id);
+    subscribeToChange('TR808File', sfplay, 'open', id);
+    subscribeToChange('TR808Variation', sfplay, 'open', id);
 
     // hide subpatch window
     p.wind.visible = false;
@@ -137,10 +153,9 @@ var instruments = {
       outlet = p.newdefault(10, 310, 'outlet'),
       file = this.voiceParams[id].file,
       // buffer = p.newdefault(210, 110, 'buffer~', 'waveform', file, -1),
-      phasor = p.newdefault(10, 60, 'phasor~'),
+      phasor = p.newdefault(10, 60, 'phasor~');
       // sampleDuration = p.newdefault(110, 310, '*~'),
       // play = p.newdefault(210, 160, 'play~', 'waveform'),
-      folder = p.newdefault(300, 300, 'folder', this.voiceParams[id].dir);
 
     _.times(numDivisions, function(i) {
       var buffer = p.newdefault(210, 10, 'buffer~', 'waveform-'+i, file, -1),
@@ -163,7 +178,6 @@ var instruments = {
       subscribeToChange('mediaLoopLength', sampleDuration, 'int', id);
     });
 
-    folder.bang();
     // p.connect(phasor, 0, sampleDuration, 0);
     p.connect(inlet, 0, phasor, 0);
 

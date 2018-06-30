@@ -12,7 +12,7 @@ var presets = {
     ET: false,
     quantize: true,
     chordIndex: 4,
-    sequenceType: 'bjorklund',
+    // sequenceType: 'bjorklund',
     adsr: [1, 5, 1.0, 10],
 
     repetitions: 1,
@@ -41,7 +41,7 @@ var presets = {
     voiceParams: [
       {
         soundSource: 'plonk',
-        sequence: {
+        sequenceParams: {
           length: 8,
           hits: 4
         },
@@ -57,7 +57,7 @@ var presets = {
       },
       {
         soundSource: 'interp',
-        sequence: {
+        sequenceParams: {
           length: 8,
           hits: 1
         },
@@ -73,7 +73,7 @@ var presets = {
       },
       {
         soundSource: 'fmOscillator',
-        sequence: {
+        sequenceParams: {
           length: 8,
           hits: 1
         },
@@ -92,11 +92,10 @@ var presets = {
         }
       },
       {
-        soundSource: 'media',
-        file: basePath + library + '/CY/CY7575.WAV',
-        dir: basePath + library,
+        soundSource: 'TR808',
+        key: 'CY',
         // rule: 'R',
-        sequence: {
+        sequenceParams: {
           length: 4,
           hits: 1
         },
@@ -114,12 +113,10 @@ var presets = {
       },
       {
         soundSource: 'fmOscillator',
-        file: basePath + library + '/LC/LC75.WAV',
-        dir: basePath + library,
         // rule: 'R',
         // triggerRule: 'LFO',
-        sequenceType: 'bjorklund-inverse',
-        sequence: {
+        sequenceParams: {
+          type: 'bjorklund-inverse',
           length: 8,
           hits: 1
         },
@@ -139,10 +136,9 @@ var presets = {
         }
       },
       {
-        soundSource: 'media',
-        file: basePath + library + '/BD/BD7575.WAV',
-        dir: basePath + library,
-        sequence: {
+        soundSource: 'TR808',
+        key: 'BD',
+        sequenceParams: {
           length: 4,
           hits: 1
         },
@@ -158,7 +154,7 @@ var presets = {
       },
       {
         soundSource: 'fmBell',
-        sequence: {
+        sequenceParams: {
           length: 16,
           hits: 16
         },
@@ -179,7 +175,7 @@ var presets = {
       },
       {
         soundSource: 'click',
-        sequence: {
+        sequenceParams: {
           length: 32,
           hits: 20
         },
@@ -199,11 +195,10 @@ var presets = {
         }
       },
       {
-        soundSource: 'media',
-        file: basePath + library + '/HT/HT75.WAV',
-        dir: basePath + library,
-        sequenceType: 'bjorklund-inverse',
-        sequence: {
+        soundSource: 'TR808',
+        key: 'HT',
+        sequenceParams: {
+          type: 'bjorklund-inverse',
           length: 16,
           hits: 14
         },
@@ -229,10 +224,10 @@ var presets = {
     ET: false,
     quantize: true,
     chordIndex: 4,
-    sequenceType: 'bjorklund',
+    // sequenceType: 'bjorklund',
     adsr: [1, 5, 1.0, 10],
 
-    repetitions: 1,
+    repetitions: 16,
     twill: [1],
 
     // PITCH MODES
@@ -249,6 +244,7 @@ var presets = {
     },
 
     controller: {
+      volume: 0,
       modulator1: 2.35,
       delayLength: 300,
       delayFeedback: 0.0
@@ -258,7 +254,7 @@ var presets = {
     voiceParams: [
       {
         soundSource: 'plonk',
-        sequence: {
+        sequenceParams: {
           length: 8,
           hits: 4
         },
@@ -274,7 +270,7 @@ var presets = {
       },
       {
         soundSource: 'mediaLoop',
-        sequence: {
+        sequenceParams: {
           length: 8,
           hits: 8
         },
@@ -287,82 +283,82 @@ var presets = {
         qmmf: true,
         post: ['lpg'],
         controller: {
-          volume: 1
         }
       },
       {
-        soundSource: 'fmOscillator',
-        file: basePath + library + '/LC/LC75.WAV',
-        dir: basePath + library,
+        soundSource: 'recursiveAM',
         // rule: 'R',
         // triggerRule: 'LFO',
-        sequenceType: 'bjorklund-inverse',
-        sequence: {
+        sequenceParams: {
+          type: 'bjorklund-inverse',
           length: 8,
           hits: 1
         },
-        chord: [0.25, 0.5, 0.5, 0.5, 1],
+        // chord: [0.25, 0.5, 0.5, 0.5, 1],
         adsr: [50, 1000, 1.0, 5000],
-        glissando: 1000,
-        // chord: [0.25, 0.5, 1, 3/12, 7/12],
+        // glissando: 1000,
+        chord: [1, 1, 1],
         dub: [0],
         // subdivision: 8,
-        register: 0,
+        register: 2,
         qmmf: true,
         post: [],
         controller: {
-          volume: 1.0,
+          volume: 0.5
           // fmIndex: 2,
           // fmRatio: 4
         }
       },
       {
-        soundSource: 'media',
-        file: basePath + library + '/BD/BD7575.WAV',
-        dir: basePath + library,
-        sequence: {
-          length: 4,
-          hits: 1
+        soundSource: 'TR808',
+        key: 'SD',
+        sequenceParams: {
+          type: 'pattern',
+          length: 16,
+          hits: 8,
+          pattern: [3]
         },
-        adsr: [0, 1000, 1, 0],
-        chord: [0.5, 1, 3/12],
-        dub: [0, 1.5, 3],
-        register: 1,
-        qmmf: true,
+        // triggerRule: 'random',
+        // ringChanges: true,
+        // subdivision: 4,
+        adsr: [0, 500, 1, 0],
+        dub: [0, 2, 3, 4],
+        register: 0,
+        qmmf: false,
         post: [],
         controller: {
           volume: 1
         }
       },
       {
-        soundSource: 'click',
-        sequence: {
-          length: 32,
-          hits: 20
+        soundSource: 'TR808',
+        key: 'BD',
+        sequenceParams: {
+          type: 'pattern',
+          length: 8,
+          hits: 4,
+          pattern: [8]
         },
-        triggerRule: 'random',
+        // triggerRule: 'random',
         // ringChanges: true,
         // subdivision: 4,
-        adsr: [0, 100, 1, 0],
-        dub: [0],
-        register: 3,
+        adsr: [0, 500, 1, 0],
+        dub: [0, 3],
+        register: 0,
         qmmf: false,
         post: [],
         controller: {
-          volume: 0.3,
-          clickFeedback: 0.0,
-          clickFilter: 64,
-          clickMix: 1
+          volume: 1,
+          voiceMetronome: 1
         }
       },
       {
-        soundSource: 'media',
-        file: basePath + library + '/HT/HT75.WAV',
-        dir: basePath + library,
-        sequenceType: 'bjorklund-inverse',
-        sequence: {
-          length: 16,
-          hits: 14
+        soundSource: 'TR808',
+        key: 'HT',
+        sequenceParams: {
+          type: 'bjorklund-inverse',
+          length: 8,
+          hits: 8
         },
         // subdivision: 4,
         adsr: [0, 100, 1, 0],
@@ -371,7 +367,7 @@ var presets = {
         qmmf: false,
         post: [],
         controller: {
-          volume: 0.1
+          volume: 0
         }
       }
     ]

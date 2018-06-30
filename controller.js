@@ -1,5 +1,90 @@
-var prevState = {},
-  voiceControl = {
+var mappings = {
+  beatstep: {
+    0: {
+      channel: 7,
+      fn: modulateTempo
+    },
+    1: {
+      channel: 10,
+      fn: modulateMainFrequency
+    },
+    2: {
+      channel: 74,
+      fn: modulateRegister
+    },
+    3: {
+      channel: 71,
+      fn: modulateDelayLength
+    },
+    4: {
+      channel: 76,
+      fn: modulateDelayFeedback
+    },
+    5: {
+      channel: 77,
+      fn: modulateVoiceParam1
+    },
+    6: {
+      channel: 93,
+      fn: modulateVoiceParam2
+    },
+    7: {
+      channel: 73,
+      fn: modulateVoiceParam3
+    },
+    8: {
+      channel: 75,
+      fn: modulateVolume
+    },
+    9: {
+      channel: 114,
+      fn: modulateAttack
+    },
+    // decay
+    10: {
+      channel: 18,
+      fn: modulateDecay
+    },
+    // sustain
+    11: {
+      channel: 19,
+      fn: modulateSustain
+    },
+    // release
+    12: {
+      channel: 16,
+      fn: modulateRelease
+    },
+    13: {
+      channel: 17,
+      fn: modulateSequence
+    },
+    14: {
+      channel: 91,
+      fn: modulateChordSpread
+      // fn: delayModulation
+    },
+    15: {
+      channel: 79,
+      fn: modulateSwing
+      // fn: modulateEnvelopeFollower
+    },
+    16: {
+      channel: 72,
+      fn: modulateSequenceSpeed
+      // fn: modulateMainPhase
+    },
+
+    // handles MPC buttons 1-16
+    // NOT SURE WHY JUST SETTING CHANNEL 44 WORKS HERE????
+    17: {
+      channel: 44,
+      fn: handleMPC
+    }
+  }
+};
+
+var voiceControl = {
     0: false,
     1: false,
     2: false,
@@ -8,11 +93,11 @@ var prevState = {},
     5: false,
     6: false,
     7: false,
-    8: false,
+    8: false
   };
 
-function mapMidiToSampleFamily(val, library) {
-  var samples = _.map(media[library], function(voice){
+function mapMidiToSampleFamily(val, library, id) {
+  var samples = _.map(media[library], function(voice, key){
     var length = voice.length;
 
     return voice[length-1];
@@ -20,26 +105,28 @@ function mapMidiToSampleFamily(val, library) {
 
   for (var i = 0; i < samples.length; i++) {
     if (val/127 <= (i+1)/(samples.length)) {
-      console.log('sample', samples[i]);
+      this.voices[id].key = Object.keys(media[library])[i];
       return samples[i];
     }
   }
 }
 
-// function mapMidiToSampleVariation(val, library) {
-//   var samples = _.map(media[library], function(voice){
-//     var length = voice.length;
-//
-//     return voice[length-1];
-//   });
-//
-//   for (var i = 0; i < samples.length; i++) {
-//     if (val/127 <= (i+1)/(samples.length)) {
-//       console.log('sample', samples[i]);
-//       return samples[i];
-//     }
-//   }
-// }
+function mapMidiToSampleVariation(val, library, id) {
+  // var samples = _.map(media[library], function(voice){
+  //   var length = voice.length;
+  //
+  //   return voice[length-1];
+  // });
+
+  var key = this.voices[id].key,
+    samples = key && media[library][key] || [];
+
+  for (var i = 0; i < samples.length; i++) {
+    if (val/127 <= (i+1)/(samples.length)) {
+      return samples[i];
+    }
+  }
+}
 
 // determine voice ID
 function getVoiceSelection () {
@@ -50,6 +137,8 @@ function getVoiceSelection () {
       id = i;
     }
   });
+
+  console.log('id', id);
 
   return id;
 }
@@ -89,7 +178,7 @@ function modulateVoiceParam1(val) {
   propagateChanges({
     voiceParam1: mapToRange([0, 10], val),
     fmRatio: mapToRange([0.5, 20], val, 0.125),
-    mediaFile: mapMidiToSampleFamily(val, 'TR808'),
+    TR808File: mapMidiToSampleFamily.call(this, val, 'TR808', id),
     mediaLoopLength: mapToRange([1, 500], val),
     clickFilter: mapToRange([2, 64], val),
     interpMix: mapToRange([0, 1], val),
@@ -104,6 +193,7 @@ function modulateVoiceParam2(val) {
   var id = getVoiceSelection();
 
   propagateChanges({
+    TR808Variation: mapMidiToSampleVariation.call(this, val, 'TR808', id),
     fmIndex: mapToRange([0, 10], val, 0.125),
     pitchShift: mapToRange([0.25, 4], val),
     clickFeedback: mapToRange([0, 1], val),
@@ -234,16 +324,17 @@ function modulateDelayFeedback(val) {
 }
 
 function modulateDelayLength(val) {
-  var modFactor = mapToRange([this.lcm / 16, this.lcm], val),
-    id = getVoiceSelection();
+  // var modFactor = mapToRange([this.lcm / 16, this.lcm], val),
+  var id = getVoiceSelection();
+  //
+  // modFactor = Math.round( (modFactor * this.lcm) ) / this.lcm ;
+  //
+  // var delay = (this.clock / this.lcm) * modFactor;
 
-  modFactor = Math.round( (modFactor * this.lcm) ) / this.lcm ;
-
-  var delay = (this.clock / this.lcm) * modFactor;
-  console.log('delay', delay);
+  var quant = this.clock / 32;
 
   propagateChanges({
-    delayLength: delay
+    delayLength: mapToRange([quant, this.clock], val, quant)
   }, id);
 }
 
@@ -255,6 +346,31 @@ function delayModulation(val) {
   propagateChanges({
     delayModulation: mappedValue
   }, id);
+}
+
+function modulateSequence(val) {
+  var id = getVoiceSelection(),
+    length;
+
+  if (id >= 0 ) {
+    this.voices[id].sequence.setSequenceFromMidi(val);
+    length = this.voices[id].sequence.length;
+
+    console.log('hits', this.voices[id].sequence.hits);
+    console.log('length', this.voices[id].sequence.length);
+
+    propagateChanges({
+      sequenceLength: length
+    }, id);
+  }
+}
+
+function modulateSequenceSpeed(val) {
+  var id = getVoiceSelection();
+
+  propagateChanges({
+    voiceMetronome: mapToRange([0.5, 32], val, 0.5)
+  }, id)
 }
 
 function modulateMainFrequency (val) {
@@ -269,8 +385,6 @@ function modulateMainFrequency (val) {
   propagateChanges({
     modulator1: newValue
   }, id);
-
-  console.log('newval', newValue);
 }
 
 function modulateMainPhase (val) {
@@ -285,6 +399,7 @@ function modulateMainPhase (val) {
 }
 
 function toggleVoiceControl(id) {
+  console.log('hitting toggle', id);
   voiceControl[id] = !voiceControl[id];
 }
 
@@ -312,16 +427,16 @@ function handleMPC (val) {
     case 47: // voice 4
       toggleVoiceControl(3);
       break;
-    case 48: // voice 1
+    case 48: // voice 5
       toggleVoiceControl(4);
       break;
-    case 49: // voice 2
+    case 49: // voice 6
       toggleVoiceControl(5);
       break;
-    case 50: // voice 3
+    case 50: // voice 7
       toggleVoiceControl(6);
       break;
-    case 51: // voice 4
+    case 51: // voice 8
       toggleVoiceControl(7);
       break;
 
@@ -332,107 +447,46 @@ function handleMPC (val) {
     default:
 
   }
+};
+
+function controller (controllerName) {
+  this.mapping = mappings[controllerName];
+  this.prevState = {};
+
+  this.channels = _.map(this.mapping, function(item) {
+    return item.channel;
+  });
+
+  this.length = this.channels.length;
 }
 
-var controller = {
-  // track previous values
-  prevState: {},
+controller.prototype = {
+  send: function (id, val, qcvg) {
+    var fn = this.mapping[id].fn,
+      previousVal = this.getPrevVal(id);
 
-  beatstep: {
-    // clock
-    '0': {
-      channel: 7,
-      fn: modulateTempo
-    },
-    1: {
-      channel: 10,
-      fn: modulateMainFrequency
-    },
-    2: {
-      channel: 74,
-      fn: modulateRegister
-    },
-    3: {
-      channel: 71,
-      fn: modulateDelayLength
-    },
-    4: {
-      channel: 76,
-      fn: modulateDelayFeedback
-    },
-    5: {
-      channel: 77,
-      fn: modulateVoiceParam1
-    },
-    6: {
-      channel: 93,
-      fn: modulateVoiceParam2
-    },
-    7: {
-      channel: 73,
-      fn: modulateVoiceParam3
-    },
-    8: {
-      channel: 75,
-      fn: modulateVolume
-    },
+    console.log('hitting sepnd', id);
+    console.log('val', val);
 
-    // attack
-    9: {
-      channel: 114,
-      fn: modulateAttack
-    },
-    // decay
-    10: {
-      channel: 18,
-      fn: modulateDecay
-    },
-    // sustain
-    11: {
-      channel: 19,
-      fn: modulateSustain
-    },
-    // release
-    12: {
-      channel: 16,
-      fn: modulateRelease
-    },
-    13: {
-      channel: 17,
-      fn: modulatePhaserResonance
-    },
-    14: {
-      channel: 91,
-      fn: modulateChordSpread
-      // fn: delayModulation
-    },
-    15: {
-      channel: 79,
-      fn: modulateGlissando
-      // fn: modulateEnvelopeFollower
-    },
-    16: {
-      channel: 72,
-      fn: modulateSwing
-      // fn: modulateMainPhase
-    },
-
-    // handles MPC buttons 1-16
-    // NOT SURE WHY JUST SETTING CHANNEL 44 WORKS HERE????
-    17: {
-      channel: 44,
-      fn: handleMPC
+    // ignore if previousVal hasn't already been set
+    // (this helps with ctlin values defaulting to zero on load)
+    // (no longer needed if i figure out a way to output MIDI cc from controller on load)
+    // note: this is only helpful for knobs, not triggers (id 17)
+    if (previousVal > -1 || id === 17) {
+      fn.call(qcvg, val);
     }
+
+    // save new value to prevState
+    this.saveToPrevState(id, val);
+  },
+
+  getPrevVal: function (channel) {
+    return this.prevState[channel];
+  },
+
+  saveToPrevState: function (channel, value) {
+    this.prevState[channel] = value;
   }
 }
 
-controller.saveToPrevState = function (channel, value) {
-  prevState[channel] =  value;
-}
-
-controller.getPrevVal = function (channel) {
-  return prevState[channel];
-}
-
-exports.controller = controller;
-// exports.saveToPrevState = saveToPrevState;
+exports.constructor = controller;

@@ -571,6 +571,83 @@ function metronome (x, y, patcher) {
   return patchObj;
 }
 
+function voiceMetronome (x, y, patcher, id) {
+  this.lcm = this.voices[id].sequence.length;
+
+  var patchObj = patcher.newdefault(x, y, 'patcher', 'voiceMetronome'),
+    subpatcher = patchObj.subpatcher(),
+    phasor = subpatcher.newdefault(120, 260, 'phasor~'),
+    inlet1 = subpatcher.newdefault(10, 10, 'inlet'),
+    inlet2 = subpatcher.newdefault(60, 10, 'inlet'),
+    inlet2Sig = subpatcher.newdefault(40, 60, 'sig~'),
+    var2 = subpatcher.newdefault(40, 110, '/~'),
+    swingInput = subpatcher.newdefault(260, 10, '/~', 2),
+    // swingInput = subpatcher.newdefault(260, 10, 'expr', '1000.*8/$f1'),
+    swingAmt = subpatcher.newdefault(260, 60, '*~', 0),
+    swingCycle = subpatcher.newdefault(260, 110, 'cycle~'),
+    swingMult = subpatcher.newdefault(260, 160, '*~'),
+    phasorInput = subpatcher.newdefault(40, 160, '+~'),
+    phasorMultiplier = subpatcher.newdefault(40, 210, '*~', 1),
+    phasorSnapshot = subpatcher.newdefault(40, 260, 'snapshot~', 1),
+    lcm = subpatcher.newdefault(150, 10, 'number', this.lcm),
+    lcmSig = subpatcher.newdefault(150, 60, 'sig~'),
+    var1 = subpatcher.newdefault(150, 110, '*~', 1000),
+    round = subpatcher.newdefault(230, 260, 'round~', '1.0'),
+    edgeDetector = subpatcher.newdefault(340, 260, 'edge~'),
+    gate = subpatcher.newdefault(10, 360, 'gate', 1),
+    message = subpatcher.newdefault(120, 360, 'message'),
+    sprintf = subpatcher.newdefault(120, 410, 'sprintf', '%s'),
+    outlet = subpatcher.newdefault(10, 410, 'outlet');
+
+  lcm.int(this.lcm);
+  message.set('bangVoice ' + id);
+
+  // connections
+  subpatcher.connect(inlet2, 0, inlet2Sig, 0);
+  subpatcher.connect(inlet2Sig, 0, var2, 1);
+  subpatcher.connect(lcm, 0, lcmSig, 0);
+  subpatcher.connect(lcmSig, 0, var1, 0);
+  subpatcher.connect(var1, 0, var2, 0);
+  subpatcher.connect(var2, 0, swingInput, 0);
+  subpatcher.connect(swingInput, 0, swingCycle, 0);
+  subpatcher.connect(swingCycle, 0, swingMult, 0);
+  subpatcher.connect(swingAmt, 0, swingMult, 1);
+  subpatcher.connect(swingMult, 0, phasorInput, 1);
+  subpatcher.connect(phasorInput, 0, phasorMultiplier, 0);
+  subpatcher.connect(var2, 0, phasorInput, 0);
+  subpatcher.connect(phasorInput, 0, phasorMultiplier, 0);
+  subpatcher.connect(phasorMultiplier, 0, phasorSnapshot, 0);
+  subpatcher.connect(phasorSnapshot, 0, phasor, 0);
+  subpatcher.connect(phasor, 0, round, 0)
+  subpatcher.connect(round, 0, edgeDetector, 0);
+  subpatcher.connect(edgeDetector, 1, gate, 1);
+  subpatcher.connect(inlet1, 0, gate, 0);
+  subpatcher.connect(gate, 0, message, 0);
+  subpatcher.connect(message, 0, sprintf, 0);
+  subpatcher.connect(sprintf, 0, outlet, 0);
+
+  lcm.bang();
+
+  subscribeToChange('metronomeSwing', swingAmt, 'float');
+  subscribeToChange('voiceMetronome', phasorMultiplier, 'float', id);
+  subscribeToChange('sequenceLength', lcm, 'int', id);
+
+  // hide subpatch window
+  subpatcher.wind.visible = false;
+
+  return patchObj;
+}
+
+// TODO: function to provide callback for voice bang trigger
+// function voiceCallback (x, y, patcher, id) {
+//   var patchObj = patcher.newdefault(x, y, 'patcher', 'voiceCallback'),
+//     subpatcher = patchObj.subpatcher(),
+//     inlet = subpatcher.newdefault(10, 10, 'inlet'),
+//     outlet = subpatcher.newdefault(60, 10, 'outlet');
+//
+//
+// }
+
 // sends midi channel information when note in is detected
 function noteInDetector(x, y, patcher) {
   var patchObj = patcher.newdefault(x, y, 'patcher', 'noteInDetector'),
@@ -647,6 +724,12 @@ function voice(length, hits) {
     }, this.preset);
 
   this.voices.push(voice);
+
+  // construct metronome
+  var metronomeObj = voiceMetronome.call(this, 310, 160, this.patcher, id);
+  this.patcher.connect(this.objects.metroToggle, 0, metronomeObj, 0);
+  this.patcher.connect(this.objects.metro, 0, metronomeObj, 1);
+  this.patcher.connect(metronomeObj, 0, this.box, 0);
 
   var xPos = 10 + id * 140;
   var voicePatch = this.patcher.newdefault(xPos, 400, 'patcher', 'voice'),
@@ -742,14 +825,6 @@ function voice(length, hits) {
   // connect to delay line
   // var delay = generate.delay(voicePatcher);
   // this.patcher.connect(voicePatch, 0, delay, 0);
-
-  // controller presets
-  var controllerPresets = this.voiceParams[id].controller;
-  if (controllerPresets) {
-    _.forEach(controllerPresets, function(value, key) {
-      propagateChange(key, value, id);
-    });
-  }
 
   // hide subpatch window
   voicePatcher.wind.visible = false;
@@ -975,6 +1050,7 @@ exports.generate = {
   soundSource: soundSource,
   adsr: adsr,
   metronome: metronome,
+  voiceMetronome: voiceMetronome,
   noteInDetector: noteInDetector,
   postChain: postChain,
   stereoOutput: stereoOutput,

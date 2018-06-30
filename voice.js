@@ -1,4 +1,4 @@
-const sequence = require('sequence').constructor,
+const Sequence = require('sequence').constructor,
 	Rules = require('rules').rules,
 	Chords = require('chords').chords;
 
@@ -67,6 +67,7 @@ function Voice(opts, params) {
 	// needed for managing sequences of different lengths
 	this.main = opts.main;
 	this.bangDivider = this.main.lcm / this.length;
+	this.bangDivider = 1;
 
 	// if (this.bangDivider == 1) {
 	// 	this.bangDivider = this.main.lcm;
@@ -95,28 +96,25 @@ Voice.prototype = {
 			// 	console.log('bang divider', this.bangDivider);
 			// }
 			if (this.shouldTrigger()) {
-				// var midiVal = Math.round(Math.random() * 8) * 12,
-
 				if (this.shouldAdvance()) {
 					this.advance();
 				}
 				this.sendNote();
 				this.sendTrigger();
-
-				// if (this.id === 3) {
-				// 	post('sequence', this.sequence.pitchArray); post();
-				// }
-
-				// if (voice.id == 0) {
-				// 	midiVal = ((seqcounter % voice.length) ) * 12;
-				// 	// outlet(2, hertzVal);
-				// 	outlet(1, seqcounter); // sound out our location in the sequence
-				// 	outlet(0, midiVal); // send out the current note
-				// }
 			}
 
 			this.tick();
 
+		}
+	},
+
+	// callback after bang has been executed
+	// NOTE: needs to be refactored to be handled in a batch for all voices
+	afterBang: function () {
+		var endOfSequence = (this.index - 1) % this.length === 0;
+
+		if (endOfSequence) {
+			// this.sequence.randomizeSequenceSpeed(this.id);
 		}
 	},
 
@@ -170,6 +168,8 @@ Voice.prototype = {
 	    this.floor = Math.pow(2, -1);
 	    this.roof  = Math.pow(2, 4);
 	  }
+
+		console.log('register', register);
 	},
 
 	shouldAdvance: function() {
@@ -317,7 +317,7 @@ Voice.prototype = {
 		var interval = this.sequence.getInterval(this.index);
 			pitch = this.params.baseFrequency * interval;
 
-		// interval = 1.0;
+		interval = this.fixInterval(interval);
 
 		outlet(this.pitchOutlet, interval);
 
@@ -336,7 +336,8 @@ Voice.prototype = {
 		outlet(this.triggerOutlet, "bang");
 
 		// trigger sample playback
-		if (this.params.voiceParams[this.id].soundSource === 'media') {
+		// TODO: update to make more general
+		if (this.params.voiceParams[this.id].soundSource === 'TR808') {
 			propagateChange('voiceTrigger', 1, this.id);
 		}
 
@@ -364,7 +365,11 @@ Voice.prototype = {
 	processSubdivision: function() {
 		var subdivision = this.hasOwnProperty('subdivision') ? this.subdivision : 1;
 
-		this.sequence = new sequence(this.sequenceType, this.length, this.hits, subdivision);
+		var sequenceParams = this.sequenceParams;
+
+		// this.sequence = new sequence(this.sequenceType, this.length, this.hits, subdivision);
+		this.sequence = new Sequence(sequenceParams);
+		console.log('seq length', this.sequence.length);
 		this.length *= subdivision;
 	},
 

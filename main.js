@@ -150,12 +150,17 @@ QCVG.prototype = {
 		this.barCount = Math.floor(this.seqcounter / this.lcm);
 	},
 
+	bangVoice: function(i) {
+		this.voices[i].bang();
+		this.voices[i].afterBang();
+	},
+
 	setupController: function () {
 		var posX = 10;
 
 		// handle knobs (1-16)
-		_.forEach(controller, function(input, i) {
-			var ctlin = this.patcher.newdefault(posX + 60 * i, 10, 'ctlin', input.channel),
+		_.forEach(controller.channels, function(channel, i) {
+			var ctlin = this.patcher.newdefault(posX + 60 * i, 10, 'ctlin', channel),
 				dial = this.patcher.newdefault(posX + 60 * i, 40, 'dial');
 
 			connectByTask(this.patcher, ctlin, 0, dial, 0);
@@ -188,7 +193,7 @@ QCVG.prototype = {
 		// multiply clock by least common multiplier
 		var lengths = _.map(this.voiceParams, function(params) {
 			var subdivision = params.subdivision || 1;
-			return params.sequence.length * subdivision;
+			return params.sequenceParams.length * subdivision;
 		});
 		// console.log('lengths', lengths);
 		this.lcm = calculateLCM(lengths);
@@ -198,19 +203,11 @@ QCVG.prototype = {
 		var LFO1 = this.patcher.newdefault(760, 110, 'cycle~', 0.05);
 		registerObject('LFO1', LFO1);
 
-		_.times(numberOfVoices, function(i) {
-			var sequenceParams = this.voiceParams[i].sequence,
-				length = sequenceParams.length,
-				hits = sequenceParams.hits;
-
-			this.generateVoice(length, hits);
-		}.bind(this));
-
 		// generate metro
 		var number = this.patcher.newdefault(60, 110, 'number'),
-			metro = generate.metronome.call(this, 10, 160, this.patcher);
+		metro = generate.metronome.call(this, 10, 160, this.patcher);
 		connectByTask(this.patcher, number, 0, metro, 1);
-		connectByTask(this.patcher, metro, 0, this.box, 0);
+		// connectByTask(this.patcher, metro, 0, this.box, 0);
 		number.int(this.clock);
 		number.bang();
 		this.objects = {metro: number};
@@ -219,6 +216,16 @@ QCVG.prototype = {
 		// generate toggle
 		var toggle = this.patcher.newdefault(10, 110, 'toggle');
 		connectByTask(this.patcher, toggle, 0, metro, 0);
+		this.objects.metroToggle = toggle;
+
+		// generate voices
+		_.times(numberOfVoices, function(i) {
+			var sequenceParams = this.voiceParams[i].sequenceParams,
+				length = sequenceParams.length,
+				hits = sequenceParams.hits;
+
+			this.generateVoice(length, hits);
+		}.bind(this));
 
 		// define modulators
 		var modulators = _.times(this.numberOfVoices, function(i){
@@ -232,9 +239,14 @@ QCVG.prototype = {
 		// connect modulators
 		for (var i = 0; i < modulators.length; i++) {
 			connectByTask(this.patcher, metro, 0, modulators[i], 0);
-			connectByTask(this.patcher, modulators[i], 0, this.funnel, i + Object.keys(controller).length);
+			// connectByTask(this.patcher, modulators[i], 0, this.funnel, i + Object.keys(controller).length);
+			connectByTask(this.patcher, modulators[i], 0, this.funnel, i + controller.channels.length);
 		}
 
+		this.applyControllerPresets();
+	},
+
+	applyControllerPresets: function () {
 		// controller presets
 		var controllerPresets = this.preset.controller;
 		if (controllerPresets) {
@@ -244,6 +256,16 @@ QCVG.prototype = {
 				})
 			}.bind(this));
 		}
+
+		// voice presets
+		_.forEach(this.voiceParams, function(voiceParam, id) {
+			var controllerPresets = voiceParam.controller;
+			if (controllerPresets) {
+				_.forEach(controllerPresets, function(value, key) {
+					propagateChange(key, value, id);
+				});
+			}
+		});
 	},
 
 	generateVoice: function(length, hits) {

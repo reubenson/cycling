@@ -1,28 +1,27 @@
-var Voice = require('voice').constructor,
-	Scale = require('tuning-scale').constructor,
-	Main = require('main').constructor,
-	Presets = require('presets').presets,
-	Controller = require('controller').controller,
-	controllerName = 'beatstep',
-	controller = Controller[controllerName],
-	media = require('mediamap').media,
-
-	// global obj to store MAX objects in for easy lookup
-	GLOBAL = {},
-	// saveToGlobal = function (obj, id) {
-	//   var keys = Object.keys(obj);
-  //
-	//   _.forEach(keys, function(key){
-	//     GLOBAL[key] = GLOBAL[key] || {};
-	//     GLOBAL[key][id] = obj[key];
-	//   });
-	// },
-
-	console = {
+var console = {
 		log: function(a, b) {
 			post(a, b ,"\n");
 		}
-	};
+	},
+	Voice = require('voice').constructor,
+	Scale = require('tuning-scale').constructor,
+	Main = require('main').constructor,
+	Presets = require('presets').presets,
+	Controller = require('controller').constructor,
+	media = require('mediamap').media,
+
+	// global obj to store MAX objects in for easy lookup
+	GLOBAL = {};
+
+
+this.preset = Presets[1];
+var numberOfVoices = this.preset.voiceParams.length,
+	controller = new Controller('beatstep');
+
+inlets = 1;
+outlets = 2 * numberOfVoices;
+
+var qcvg = new Main(this.preset, this.patcher, this.box);
 
 function registerObject(key, obj) {
 	GLOBAL[key] = obj;
@@ -70,13 +69,7 @@ function propagateChange(key, value, id) {
 	});
 }
 
-this.preset = Presets[1];
-var numberOfVoices = this.preset.voiceParams.length;
 
-inlets = 1;
-outlets = 2 * numberOfVoices;
-
-var qcvg = new Main(this.preset, this.patcher, this.box);
 
 function loadbang() {
 	var obj = this.patcher.firstobject;
@@ -109,30 +102,25 @@ function bang() {
 	qcvg.bang();
 }
 
+function bangVoice(i) {
+	qcvg.bangVoice(i);
+}
+
 /*
- * map controller movement to actions
+ * map controller changes to actions
  * var 1 corresponds to knob id, var 2 corresponds to value of encoder
  */
-function list(var1, var2) {
-	var fn = controller[var1] && controller[var1].fn,
-		previousVal = Controller.getPrevVal(var1);
+function list(channel, val) {
+	var previousVal = controller.getPrevVal(channel);
+
+	// midi controller inputs
+	if (channel < controller.length) {
+		controller.send(channel, val, qcvg);
+	}
 
 	// lfos (one for each voice)
-	var lfoIndex = 18;
-	if (var1 >= 18) {
-		var id = var1 - lfoIndex;
-		qcvg.voices[id].modulator1 = var2;
-		// console.log('var2', var2);
+	else {
+		var id = channel - controller.length;
+		qcvg.voices[id].modulator1 = val;
 	}
-
-	// ignore if previousVal hasn't already been set
-	// (this helps with ctlin values defaulting to zero on load)
-	// (no longer needed if i figure out a way to output MIDI cc from controller on load)
-	// note: this is only helpful for knobs, not triggers
-	if (var1 > 16 || previousVal > -1) {
-		fn && fn.call(qcvg, var2, previousVal);
-	}
-
-	// save new value to prevState
-	Controller.saveToPrevState(var1, var2);
 }
